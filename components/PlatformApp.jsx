@@ -1015,7 +1015,11 @@ export default function PlatformApp({ usuario }) {
 
       <aside style={{ width: 232, flexShrink: 0, background: tokens.graphite900, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', padding: '26px 24px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+          <div
+            onClick={() => setNavAtivo('painel')}
+            title="Ir para o Painel geral"
+            style={{ display: 'flex', alignItems: 'center', padding: '26px 24px', borderBottom: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer' }}
+          >
             <img src={LOGO_SRC} alt="Logo do escritório" style={{ height: 20, width: 'auto', filter: 'invert(1) brightness(2)' }} />
           </div>
           <nav style={{ marginTop: 22, display: 'flex', flexDirection: 'column', gap: 2, padding: '0 12px' }}>

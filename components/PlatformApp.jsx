@@ -104,6 +104,16 @@ function formatarCEP(valor) {
   return digitos;
 }
 
+// Formata progressivamente: 00.000.000/0000-00
+function formatarCNPJ(valor) {
+  const digitos = valor.replace(/\D/g, '').slice(0, 14);
+  if (digitos.length > 12) return digitos.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{1,2})/, '$1.$2.$3/$4-$5');
+  if (digitos.length > 8) return digitos.replace(/(\d{2})(\d{3})(\d{3})(\d{1,4})/, '$1.$2.$3/$4');
+  if (digitos.length > 5) return digitos.replace(/(\d{2})(\d{3})(\d{1,3})/, '$1.$2.$3');
+  if (digitos.length > 2) return digitos.replace(/(\d{2})(\d{1,3})/, '$1.$2');
+  return digitos;
+}
+
 function dataDeHojeISO() {
   const hoje = new Date();
   return hoje.toISOString().slice(0, 10);
@@ -243,17 +253,24 @@ function ModalBase({ titulo, onFechar, children, largura = 460 }) {
 
 function NovoClienteModal({ onFechar, onSalvar }) {
   const [form, setForm] = useState({
-    nome: '', cpf: '', email: '', telefone: '', aniversario: '',
+    tipo: 'PF', nome: '', documento: '', email: '', telefone: '', aniversario: '',
     rua: '', numero: '', bairro: '', cep: '',
   });
   const atualizar = (campo, valor) => setForm((f) => ({ ...f, [campo]: valor }));
+
+  function trocarTipo(novoTipo) {
+    // Zera o documento ao trocar — o formato de CPF e CNPJ é diferente,
+    // manter o valor antigo geraria uma máscara quebrada.
+    setForm((f) => ({ ...f, tipo: novoTipo, documento: '' }));
+  }
 
   function salvar() {
     if (!form.nome.trim()) return;
     onSalvar({
       id: `cl-${Date.now()}`,
       nome: form.nome,
-      cpf: form.cpf,
+      tipo: form.tipo,
+      documento: form.documento,
       email: form.email,
       telefone: form.telefone,
       aniversario: form.aniversario,
@@ -261,7 +278,6 @@ function NovoClienteModal({ onFechar, onSalvar }) {
       numero: form.numero,
       bairro: form.bairro,
       cep: form.cep,
-      tipo: 'PF',
       nivel: 'Standard',
       status: 'lead',
       responsavel: 'Você',
@@ -272,20 +288,54 @@ function NovoClienteModal({ onFechar, onSalvar }) {
   return (
     <ModalBase titulo="Novo cliente" onFechar={onFechar} largura={520}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <Campo label="Tipo de pessoa">
+          <div className="hairline" style={{ display: 'flex' }}>
+            <button
+              type="button"
+              onClick={() => trocarTipo('PF')}
+              style={{
+                flex: 1, padding: '9px 12px', fontSize: 13, cursor: 'pointer', border: 'none',
+                background: form.tipo === 'PF' ? tokens.graphite900 : 'transparent',
+                color: form.tipo === 'PF' ? tokens.bg : tokens.graphite700,
+              }}
+            >
+              Pessoa física
+            </button>
+            <button
+              type="button"
+              onClick={() => trocarTipo('PJ')}
+              style={{
+                flex: 1, padding: '9px 12px', fontSize: 13, cursor: 'pointer', borderTop: 'none', borderBottom: 'none', borderRight: 'none',
+                borderLeft: `1px solid ${tokens.border}`,
+                background: form.tipo === 'PJ' ? tokens.graphite900 : 'transparent',
+                color: form.tipo === 'PJ' ? tokens.bg : tokens.graphite700,
+              }}
+            >
+              Pessoa jurídica
+            </button>
+          </div>
+        </Campo>
+
         <Campo label="Nome">
-          <input className="hairline" style={inputStyle} value={form.nome} onChange={(e) => atualizar('nome', e.target.value)} placeholder="Nome completo ou razão social" />
+          <input
+            className="hairline"
+            style={inputStyle}
+            value={form.nome}
+            onChange={(e) => atualizar('nome', e.target.value)}
+            placeholder={form.tipo === 'PJ' ? 'Razão social' : 'Nome completo'}
+          />
         </Campo>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <Campo label="CPF">
+          <Campo label={form.tipo === 'PJ' ? 'CNPJ' : 'CPF'}>
             <input
               className="hairline"
               style={inputStyle}
-              value={form.cpf}
-              onChange={(e) => atualizar('cpf', formatarCPF(e.target.value))}
-              placeholder="000.000.000-00"
+              value={form.documento}
+              onChange={(e) => atualizar('documento', form.tipo === 'PJ' ? formatarCNPJ(e.target.value) : formatarCPF(e.target.value))}
+              placeholder={form.tipo === 'PJ' ? '00.000.000/0000-00' : '000.000.000-00'}
               inputMode="numeric"
-              maxLength={14}
+              maxLength={form.tipo === 'PJ' ? 18 : 14}
             />
           </Campo>
           <Campo label="Data de aniversário">

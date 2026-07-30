@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { dataApi } from '@/lib/supabase/data';
 import { tokens } from '@/lib/designTokens';
 import {
   LayoutGrid, Users, Building2, Wallet, AlertTriangle, Clock3,
@@ -45,17 +46,9 @@ const STATUS_PROSPECCAO_LABEL = {
 const CARGOS_EQUIPE = ['Sócio', 'Arquiteto Sênior', 'Arquiteto Júnior', 'Designer de Interiores', 'Estagiário', 'Administrativo', 'Financeiro'];
 
 // ---------------------------------------------------------------------
-// Dados iniciais — tudo vazio de propósito. A plataforma começa zerada,
-// pronta para o cadastro real do escritório.
+// gerarParcelas — usada pelo formulário de Novo Contrato para calcular
+// as parcelas automaticamente antes de enviar ao banco.
 // ---------------------------------------------------------------------
-
-const clientesMockInicial = [];
-const projetosMockInicial = [];
-const demandasMockInicial = [];
-const equipeMockInicial = [];
-const parceriasMockInicial = [];
-const orcamentosMockInicial = [];
-const notificacoesMockInicial = [];
 
 function gerarParcelas(valorTotal, numeroParcelas, dataInicio) {
   const valor = Math.round(valorTotal / numeroParcelas);
@@ -69,7 +62,9 @@ function gerarParcelas(valorTotal, numeroParcelas, dataInicio) {
   return parcelas;
 }
 
-const contratosMockInicial = [];
+// Aprovação de minutas ainda não foi conectada ao banco nesta rodada —
+// segue como mock local, sinalizado explicitamente para não confundir
+// com o restante (que já persiste de verdade).
 const minutasMockInicial = [];
 
 // ---------------------------------------------------------------------
@@ -1960,15 +1955,17 @@ function EquipeView({ equipe, demandas, projetos, onNovoMembro }) {
 
 export default function PlatformApp({ usuario }) {
   const [navAtivo, setNavAtivo] = useState('painel');
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState('');
 
-  const [clientes, setClientes] = useState(clientesMockInicial);
-  const [projetos, setProjetos] = useState(projetosMockInicial);
-  const [demandas, setDemandas] = useState(demandasMockInicial);
-  const [contratos, setContratos] = useState(contratosMockInicial);
-  const [equipe, setEquipe] = useState(equipeMockInicial);
-  const [parcerias, setParcerias] = useState(parceriasMockInicial);
-  const [orcamentos, setOrcamentos] = useState(orcamentosMockInicial);
-  const [notificacoes, setNotificacoes] = useState(notificacoesMockInicial);
+  const [clientes, setClientes] = useState([]);
+  const [projetos, setProjetos] = useState([]);
+  const [demandas, setDemandas] = useState([]);
+  const [contratos, setContratos] = useState([]);
+  const [equipe, setEquipe] = useState([]);
+  const [parcerias, setParcerias] = useState([]);
+  const [orcamentos, setOrcamentos] = useState([]);
+  const [notificacoes, setNotificacoes] = useState([]);
 
   const [modalCliente, setModalCliente] = useState(false);
   const [modalProjeto, setModalProjeto] = useState(false);
@@ -1981,49 +1978,176 @@ export default function PlatformApp({ usuario }) {
 
   const navSeguro = navAtivo === 'financeiro' && !usuario.ehAdminFinanceiro ? 'painel' : navAtivo;
 
-  function notificar(mensagem) {
-    setNotificacoes((atual) => [...atual, { id: Date.now() + Math.random(), mensagem, lida: false, data: dataDeHojeISO() }]);
+  // Carrega tudo do Supabase ao abrir a plataforma. Contratos e
+  // parcerias só são buscados para quem tem a flag de admin financeiro
+  // — para os demais, a RLS do banco já devolveria vazio mesmo assim,
+  // mas evitamos a chamada desnecessária.
+  useEffect(() => {
+    let cancelado = false;
+
+    async function carregarTudo() {
+      try {
+        const [c, p, d, eq, orc, notif] = await Promise.all([
+          dataApi.clientes.listar(),
+          dataApi.projetos.listar(),
+          dataApi.demandas.listar(),
+          dataApi.equipe.listar(),
+          dataApi.orcamentos.listar(),
+          dataApi.notificacoes.listar(),
+        ]);
+        if (cancelado) return;
+        setClientes(c);
+        setProjetos(p);
+        setDemandas(d);
+        setEquipe(eq);
+        setOrcamentos(orc);
+        setNotificacoes(notif);
+
+        if (usuario.ehAdminFinanceiro) {
+          const [ct, pc] = await Promise.all([dataApi.contratos.listar(), dataApi.parcerias.listar()]);
+          if (cancelado) return;
+          setContratos(ct);
+          setParcerias(pc);
+        }
+      } catch (e) {
+        console.error(e);
+        if (!cancelado) setErro('Não foi possível carregar os dados do banco. Tente recarregar a página.');
+      } finally {
+        if (!cancelado) setCarregando(false);
+      }
+    }
+
+    carregarTudo();
+    return () => { cancelado = true; };
+  }, [usuario.ehAdminFinanceiro]);
+
+  function notificarLocal(mensagem) {
+    // Otimista: mostra na hora, mesmo antes do banco confirmar.
+    setNotificacoes((atual) => [...atual, { id: `tmp-${Date.now()}`, mensagem, lida: false, data: dataDeHojeISO() }]);
+    dataApi.notificacoes.inserir({ mensagem, lida: false, data: dataDeHojeISO() }).catch((e) => console.error(e));
   }
 
-  function cadastrarCliente(c) {
-    setClientes((atual) => [...atual, c]);
-    notificar(`Novo cliente cadastrado: ${c.nome}`);
+  async function cadastrarCliente(c) {
+    try {
+      const novo = await dataApi.clientes.inserir(c);
+      setClientes((atual) => [...atual, novo]);
+      notificarLocal(`Novo cliente cadastrado: ${novo.nome}`);
+    } catch (e) {
+      console.error(e);
+      alert('Não foi possível salvar o cliente. Tente novamente.');
+    }
   }
 
-  function excluirCliente(id) {
+  async function excluirCliente(id) {
+    const anterior = clientes;
     setClientes((atual) => atual.filter((c) => c.id !== id));
+    try {
+      await dataApi.clientes.excluir(id);
+    } catch (e) {
+      console.error(e);
+      setClientes(anterior);
+      alert('Não foi possível excluir o cliente.');
+    }
   }
 
-  function cadastrarProjeto(p) {
-    setProjetos((atual) => [...atual, p]);
-    notificar(`Novo projeto cadastrado: ${p.nome}`);
+  async function cadastrarProjeto(p) {
+    try {
+      const novo = await dataApi.projetos.inserir(p);
+      setProjetos((atual) => [...atual, novo]);
+      notificarLocal(`Novo projeto cadastrado: ${novo.nome}`);
+    } catch (e) {
+      console.error(e);
+      alert('Não foi possível salvar o projeto. Tente novamente.');
+    }
   }
 
   function atualizarProjeto(id, patch) {
+    // Otimista primeiro — o Kanban e as abas do projeto respondem na
+    // hora — depois grava no banco. Se falhar, é só um log por ora
+    // (evita travar a tela por causa de uma revisão/foto perdida).
     setProjetos((atual) => atual.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+    dataApi.projetos.atualizar(id, patch).catch((e) => console.error(e));
   }
 
-  function cadastrarDemanda(d) {
-    setDemandas((atual) => [...atual, d]);
-    notificar(`Nova demanda: ${d.titulo}`);
+  async function cadastrarDemanda(d) {
+    try {
+      const nova = await dataApi.demandas.inserir(d);
+      setDemandas((atual) => [...atual, nova]);
+      notificarLocal(`Nova demanda: ${nova.titulo}`);
+    } catch (e) {
+      console.error(e);
+      alert('Não foi possível salvar a demanda. Tente novamente.');
+    }
   }
 
   function concluirDemanda(id) {
     setDemandas((atual) => atual.map((d) => (d.id === id ? { ...d, status: 'Concluída' } : d)));
     setDemandaSelecionadaId(null);
+    dataApi.demandas.atualizar(id, { status: 'Concluída' }).catch((e) => console.error(e));
   }
 
   function excluirDemanda(id) {
     setDemandas((atual) => atual.filter((d) => d.id !== id));
     setDemandaSelecionadaId(null);
+    dataApi.demandas.excluir(id).catch((e) => console.error(e));
+  }
+
+  async function cadastrarContrato(c) {
+    try {
+      const novo = await dataApi.contratos.inserir(c);
+      setContratos((atual) => [...atual, novo]);
+    } catch (e) {
+      console.error(e);
+      alert('Não foi possível salvar o contrato. Tente novamente.');
+    }
+  }
+
+  async function cadastrarParceria(p) {
+    try {
+      const nova = await dataApi.parcerias.inserir(p);
+      setParcerias((atual) => [...atual, nova]);
+    } catch (e) {
+      console.error(e);
+      alert('Não foi possível salvar a parceria. Tente novamente.');
+    }
+  }
+
+  async function cadastrarMembro(m) {
+    try {
+      const novo = await dataApi.equipe.inserir(m);
+      setEquipe((atual) => [...atual, novo]);
+    } catch (e) {
+      console.error(e);
+      alert('Não foi possível salvar o integrante. Tente novamente.');
+    }
+  }
+
+  async function cadastrarOrcamento(o) {
+    try {
+      const novo = await dataApi.orcamentos.inserir(o);
+      setOrcamentos((atual) => [...atual, novo]);
+    } catch (e) {
+      console.error(e);
+      alert('Não foi possível salvar o orçamento. Tente novamente.');
+    }
   }
 
   function marcarNotificacoesLidas() {
     setNotificacoes((atual) => atual.map((n) => ({ ...n, lida: true })));
+    dataApi.notificacoes.marcarTodasLidas().catch((e) => console.error(e));
   }
 
   const demandaSelecionada = demandas.find((d) => d.id === demandaSelecionadaId) || null;
   const projetoDaDemandaSelecionada = demandaSelecionada ? projetos.find((p) => p.id === demandaSelecionada.projetoId) : null;
+
+  if (carregando) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: tokens.bg, fontFamily: "'Manrope', sans-serif" }}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400&display=swap');`}</style>
+        <p style={{ fontSize: 13, color: tokens.graphite600 }}>Carregando plataforma…</p>
+      </div>
+    );
+  }
 
   const views = {
     painel: (
@@ -2116,16 +2240,21 @@ export default function PlatformApp({ usuario }) {
       </aside>
 
       <main style={{ flex: 1, padding: '40px 44px', minWidth: 0 }}>
+        {erro && (
+          <div className="hairline" style={{ background: tokens.alertSoft, color: tokens.alert, padding: '12px 16px', fontSize: 13, marginBottom: 24 }}>
+            {erro}
+          </div>
+        )}
         {views[navSeguro]}
       </main>
 
       {modalCliente && <NovoClienteModal onFechar={() => setModalCliente(false)} onSalvar={cadastrarCliente} />}
       {modalProjeto && <NovoProjetoModal clientes={clientes} equipe={equipe} onFechar={() => setModalProjeto(false)} onSalvar={cadastrarProjeto} />}
       {modalDemanda && <NovaDemandaModal projetos={projetos} equipe={equipe} onFechar={() => setModalDemanda(false)} onSalvar={cadastrarDemanda} />}
-      {modalContrato && <NovoContratoModal clientes={clientes} projetos={projetos} onFechar={() => setModalContrato(false)} onSalvar={(c) => setContratos((atual) => [...atual, c])} />}
-      {modalParceria && <NovaParceriaModal clientes={clientes} projetos={projetos} onFechar={() => setModalParceria(false)} onSalvar={(p) => setParcerias((atual) => [...atual, p])} />}
-      {modalMembro && <NovoMembroModal onFechar={() => setModalMembro(false)} onSalvar={(m) => setEquipe((atual) => [...atual, m])} />}
-      {modalOrcamento && <NovoOrcamentoModal clientes={clientes} projetos={projetos} onFechar={() => setModalOrcamento(false)} onSalvar={(o) => setOrcamentos((atual) => [...atual, o])} />}
+      {modalContrato && <NovoContratoModal clientes={clientes} projetos={projetos} onFechar={() => setModalContrato(false)} onSalvar={cadastrarContrato} />}
+      {modalParceria && <NovaParceriaModal clientes={clientes} projetos={projetos} onFechar={() => setModalParceria(false)} onSalvar={cadastrarParceria} />}
+      {modalMembro && <NovoMembroModal onFechar={() => setModalMembro(false)} onSalvar={cadastrarMembro} />}
+      {modalOrcamento && <NovoOrcamentoModal clientes={clientes} projetos={projetos} onFechar={() => setModalOrcamento(false)} onSalvar={cadastrarOrcamento} />}
 
       {demandaSelecionada && (
         <DetalheDemandaModal

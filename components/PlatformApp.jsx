@@ -41,39 +41,16 @@ const STATUS_PROSPECCAO_LABEL = {
 };
 
 // ---------------------------------------------------------------------
-// Dados iniciais (mock)
+// Dados iniciais — vazios de propósito. A plataforma começa zerada,
+// pronta para o cadastro real do escritório pelos formulários da
+// própria interface ("Novo cliente", "Novo projeto" etc.).
 // ---------------------------------------------------------------------
 
-const clientesMockInicial = [
-  { id: 'cl1', nome: 'Marina Kowalski', tipo: 'PF', nivel: 'VIP', status: 'cliente_ativo', responsavel: 'C. Andrade' },
-  { id: 'cl2', nome: 'Andrade Holdings', tipo: 'PJ', nivel: 'VIP', status: 'cliente_ativo', responsavel: 'R. Nogueira' },
-  { id: 'cl3', nome: 'Eduardo Salles', tipo: 'PF', nivel: 'Premium', status: 'cliente_ativo', responsavel: 'C. Andrade' },
-  { id: 'cl4', nome: 'Beatriz Lorenzon', tipo: 'PF', nivel: 'Premium', status: 'cliente_ativo', responsavel: 'F. Ibarra' },
-  { id: 'cl5', nome: 'Ricardo Feitosa', tipo: 'PF', nivel: 'VIP', status: 'negociacao', responsavel: 'C. Andrade' },
-  { id: 'cl6', nome: 'Fernanda Whitaker', tipo: 'PF', nivel: 'Premium', status: 'cliente_inativo', responsavel: 'C. Andrade' },
-  { id: 'cl7', nome: 'Guilherme Prado', tipo: 'PF', nivel: 'Standard', status: 'cliente_ativo', responsavel: 'R. Nogueira' },
-  { id: 'cl8', nome: 'Del Bianco Advogados', tipo: 'PJ', nivel: 'Premium', status: 'proposta_enviada', responsavel: 'F. Ibarra' },
-  { id: 'cl9', nome: 'Studio Vetorial', tipo: 'PJ', nivel: 'Standard', status: 'lead', responsavel: 'R. Nogueira' },
-];
+const clientesMockInicial = [];
 
-const projetosMockInicial = [
-  { id: 'p1', nome: 'Residência Alto de Pinheiros', clienteId: 'cl1', cliente: 'Marina Kowalski', fase: 'briefing_receptivo', prazoEtapa: '2026-08-15', statusEtapa: 'em_andamento', responsavel: 'C. Andrade', fotoUrl: '' },
-  { id: 'p2', nome: 'Studio Corporativo Faria Lima', clienteId: 'cl2', cliente: 'Andrade Holdings', fase: 'estudo_preliminar', prazoEtapa: '2026-07-31', statusEtapa: 'em_andamento', responsavel: 'R. Nogueira', fotoUrl: '' },
-  { id: 'p3', nome: 'Cobertura Jardins', clienteId: 'cl3', cliente: 'Eduardo Salles', fase: 'anteprojeto', prazoEtapa: '2026-08-02', statusEtapa: 'aguardando_aprovacao_cliente', responsavel: 'C. Andrade', fotoUrl: '' },
-  { id: 'p4', nome: 'Casa de praia — Trancoso', clienteId: 'cl4', cliente: 'Beatriz Lorenzon', fase: 'anteprojeto', prazoEtapa: '2026-07-25', statusEtapa: 'em_andamento', responsavel: 'F. Ibarra', fotoUrl: '' },
-  { id: 'p5', nome: 'Flagship Concept Store', clienteId: 'cl9', cliente: 'Studio Vetorial', fase: 'projeto_executivo', prazoEtapa: '2026-08-20', statusEtapa: 'em_andamento', responsavel: 'R. Nogueira', fotoUrl: '' },
-  { id: 'p6', nome: 'Penthouse Vila Nova Conceição', clienteId: 'cl5', cliente: 'Ricardo Feitosa', fase: 'projeto_executivo', prazoEtapa: '2026-07-29', statusEtapa: 'aguardando_aprovacao_cliente', responsavel: 'C. Andrade', fotoUrl: '' },
-  { id: 'p7', nome: 'Escritório Jurídico Del Bianco', clienteId: 'cl8', cliente: 'Del Bianco Advogados', fase: 'detalhamento', prazoEtapa: '2026-08-25', statusEtapa: 'em_andamento', responsavel: 'F. Ibarra', fotoUrl: '' },
-  { id: 'p8', nome: 'Chácara Itu — Área de Lazer', clienteId: 'cl7', cliente: 'Guilherme Prado', fase: 'detalhamento', prazoEtapa: '2026-07-20', statusEtapa: 'em_andamento', responsavel: 'R. Nogueira', fotoUrl: '' },
-  { id: 'p9', nome: 'Residência Jardim Europa', clienteId: 'cl6', cliente: 'Fernanda Whitaker', fase: 'acompanhamento_obra', prazoEtapa: '2026-09-10', statusEtapa: 'em_andamento', responsavel: 'C. Andrade', fotoUrl: '' },
-];
+const projetosMockInicial = [];
 
-const demandasMockInicial = [
-  { id: 1, titulo: 'Aprovar especificação de marcenaria', projetoId: 'p3', prioridade: 'Urgente', prazo: '2026-07-28', status: 'Aberta', responsavel: 'C. Andrade' },
-  { id: 2, titulo: 'Revisar minuta de aditivo contratual', projetoId: 'p3', prioridade: 'Alta', prazo: '2026-07-29', status: 'Em andamento', responsavel: 'C. Andrade' },
-  { id: 3, titulo: 'Enviar renders para aprovação', projetoId: 'p1', prioridade: 'Alta', prazo: '2026-07-30', status: 'Aguardando terceiros', responsavel: 'C. Andrade' },
-  { id: 4, titulo: 'Validar planilha de honorários', projetoId: 'p2', prioridade: 'Média', prazo: '2026-07-31', status: 'Em andamento', responsavel: 'R. Nogueira' },
-];
+const demandasMockInicial = [];
 
 function gerarParcelas(valorTotal, numeroParcelas, dataInicio) {
   const valor = Math.round(valorTotal / numeroParcelas);
@@ -87,16 +64,9 @@ function gerarParcelas(valorTotal, numeroParcelas, dataInicio) {
   return parcelas;
 }
 
-const contratosMockInicial = [
-  { id: 'c1', clienteId: 'cl1', cliente: 'Marina Kowalski', projeto: 'Residência Alto de Pinheiros', honorarios: 180000, forma: 'Por etapa', status: 'em_vigor', parcelas: gerarParcelas(180000, 6, '2026-05-05') },
-  { id: 'c2', clienteId: 'cl2', cliente: 'Andrade Holdings', projeto: 'Studio Corporativo Faria Lima', honorarios: 420000, forma: 'Parcelado', status: 'em_vigor', parcelas: gerarParcelas(420000, 8, '2026-04-30') },
-  { id: 'c3', clienteId: 'cl6', cliente: 'Fernanda Whitaker', projeto: 'Residência Jardim Europa', honorarios: 260000, forma: 'Parcelado', status: 'encerrado', parcelas: gerarParcelas(260000, 6, '2025-11-10') },
-];
+const contratosMockInicial = [];
 
-const minutasMockInicial = [
-  { id: 'm1', cliente: 'Eduardo Salles', projeto: 'Cobertura Jardins', tipo: 'Termo Aditivo', responsavel: 'C. Andrade', data: '2026-07-20' },
-  { id: 'm2', cliente: 'Ricardo Feitosa', projeto: 'Penthouse Vila Nova Conceição', tipo: 'Contrato de Honorários', responsavel: 'C. Andrade', data: '2026-07-22' },
-];
+const minutasMockInicial = [];
 
 // ---------------------------------------------------------------------
 // Helpers
@@ -104,7 +74,8 @@ const minutasMockInicial = [
 
 function calcularUrgenciaPrazo(prazoISO) {
   if (!prazoISO) return { nivel: 'sem_prazo', dias: null };
-  const hoje = new Date('2026-07-28T00:00:00');
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
   const prazo = new Date(prazoISO + 'T00:00:00');
   const dias = Math.round((prazo - hoje) / 86400000);
   if (dias < 0) return { nivel: 'atrasado', dias };
@@ -117,14 +88,19 @@ const formatarMoeda = (v) =>
 
 const formatarData = (iso) => (iso ? new Date(iso + 'T00:00:00').toLocaleDateString('pt-BR') : '—');
 
+function dataDeHojeISO() {
+  const hoje = new Date();
+  return hoje.toISOString().slice(0, 10);
+}
+
 function calcularFluxoPorCliente(contratos) {
-  const hoje = new Date('2026-07-28T00:00:00');
+  const hojeISO = dataDeHojeISO();
   const mapa = {};
   contratos.forEach((c) => {
     if (!mapa[c.cliente]) mapa[c.cliente] = { cliente: c.cliente, contratado: 0, recebido: 0, pendente: 0, proximoVencimento: null };
     mapa[c.cliente].contratado += c.honorarios;
     (c.parcelas || []).forEach((p) => {
-      if (p.vencimento < '2026-07-28') {
+      if (p.vencimento < hojeISO) {
         mapa[c.cliente].recebido += p.valor;
       } else {
         mapa[c.cliente].pendente += p.valor;
@@ -195,6 +171,22 @@ function Badge({ children, tone = 'neutral' }) {
     <span className="font-mono" style={{ padding: '4px 10px', fontSize: 11, letterSpacing: '0.02em', whiteSpace: 'nowrap', width: 'fit-content', ...estilos[tone] }}>
       {children}
     </span>
+  );
+}
+
+function EmptyState({ titulo, acaoLabel, onAcao }) {
+  return (
+    <div className="hairline" style={{ background: tokens.surface, padding: '40px 24px', textAlign: 'center' }}>
+      <p style={{ margin: 0, fontSize: 13, color: tokens.graphite600 }}>{titulo}</p>
+      {acaoLabel && onAcao && (
+        <button
+          onClick={onAcao}
+          style={{ marginTop: 14, background: 'transparent', border: 'none', color: tokens.chromeAccent, fontSize: 13, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}
+        >
+          {acaoLabel}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -503,6 +495,9 @@ function PainelGeralView({ demandas, projetos, onNovaDemanda }) {
 
       <div>
         <h2 style={{ marginBottom: 16, fontSize: 15, fontWeight: 300, color: tokens.graphite900 }}>Demandas em aberto</h2>
+        {ativas.length === 0 ? (
+          <EmptyState titulo="Nenhuma demanda cadastrada ainda." acaoLabel="Criar a primeira demanda" onAcao={onNovaDemanda} />
+        ) : (
         <div className="hairline" style={{ background: tokens.surface }}>
           {ativas.map((d, i) => {
             const projeto = projetos.find((p) => p.id === d.projetoId);
@@ -520,6 +515,7 @@ function PainelGeralView({ demandas, projetos, onNovaDemanda }) {
             );
           })}
         </div>
+        )}
       </div>
     </div>
   );
@@ -529,9 +525,23 @@ function PainelGeralView({ demandas, projetos, onNovaDemanda }) {
 // Vista: Clientes
 // ---------------------------------------------------------------------
 
+function contarAniversariosProximos(clientes, dias = 7) {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  return clientes.filter((c) => {
+    if (!c.aniversario) return false;
+    const [, mes, dia] = c.aniversario.split('-').map(Number);
+    const proximo = new Date(hoje.getFullYear(), mes - 1, dia);
+    if (proximo < hoje) proximo.setFullYear(hoje.getFullYear() + 1);
+    const diff = Math.round((proximo - hoje) / 86400000);
+    return diff >= 0 && diff <= dias;
+  }).length;
+}
+
 function ClientesView({ clientes, onNovoCliente }) {
   const emProspeccao = clientes.filter((c) => ['lead', 'em_qualificacao', 'proposta_enviada', 'negociacao'].includes(c.status)).length;
   const ativos = clientes.filter((c) => c.status === 'cliente_ativo').length;
+  const aniversariosProximos = contarAniversariosProximos(clientes);
 
   return (
     <div>
@@ -541,9 +551,12 @@ function ClientesView({ clientes, onNovoCliente }) {
         <StatCard label="Clientes cadastrados" valor={String(clientes.length).padStart(2, '0')} />
         <StatCard label="Em prospecção" valor={String(emProspeccao).padStart(2, '0')} />
         <StatCard label="Clientes ativos" valor={String(ativos).padStart(2, '0')} />
-        <StatCard label="Aniversários (7 dias)" valor="02" Icon={Clock3} />
+        <StatCard label="Aniversários (7 dias)" valor={String(aniversariosProximos).padStart(2, '0')} Icon={Clock3} />
       </div>
 
+      {clientes.length === 0 ? (
+        <EmptyState titulo="Nenhum cliente cadastrado ainda." acaoLabel="Cadastrar o primeiro cliente" onAcao={onNovoCliente} />
+      ) : (
       <div className="hairline" style={{ background: tokens.surface }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 100px 1fr 1fr 130px', gap: 16, padding: '12px 24px', borderBottom: `1px solid ${tokens.border}`, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: tokens.graphite600 }}>
           <span>Cliente</span><span>Tipo</span><span>Nível</span><span>Status</span><span>Responsável</span>
@@ -558,6 +571,7 @@ function ClientesView({ clientes, onNovoCliente }) {
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 }
@@ -647,6 +661,9 @@ function DemandasView({ demandas, projetos, onNovaDemanda }) {
   return (
     <div>
       <TopBar eyebrow="Operacional" titulo="Demandas" acao={<Botao onClick={onNovaDemanda}><Plus size={14} strokeWidth={1.5} />Nova demanda</Botao>} />
+      {demandas.length === 0 ? (
+        <EmptyState titulo="Nenhuma demanda cadastrada ainda." acaoLabel="Criar a primeira demanda" onAcao={onNovaDemanda} />
+      ) : (
       <div className="hairline" style={{ background: tokens.surface }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1.2fr 100px 100px 120px', gap: 16, padding: '12px 24px', borderBottom: `1px solid ${tokens.border}`, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: tokens.graphite600 }}>
           <span>Demanda</span><span>Projeto / Cliente</span><span>Prioridade</span><span>Prazo</span><span>Responsável</span>
@@ -671,6 +688,7 @@ function DemandasView({ demandas, projetos, onNovaDemanda }) {
           );
         })}
       </div>
+      )}
     </div>
   );
 }
@@ -716,6 +734,9 @@ function FinanceiroView({ contratos, clientes, projetos, onNovoContrato }) {
 
       <div style={{ marginBottom: 40 }}>
         <h2 style={{ marginBottom: 16, fontSize: 15, fontWeight: 300, color: tokens.graphite900 }}>Panorama de recebimento mês a mês</h2>
+        {panorama.length === 0 ? (
+          <EmptyState titulo="Nenhum contrato cadastrado ainda — o panorama aparece assim que houver parcelas lançadas." acaoLabel="Criar o primeiro contrato" onAcao={onNovoContrato} />
+        ) : (
         <div className="hairline" style={{ background: tokens.surface, padding: '18px 24px' }}>
           {panorama.map((m) => (
             <div key={m.chave} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '7px 0' }}>
@@ -727,10 +748,14 @@ function FinanceiroView({ contratos, clientes, projetos, onNovoContrato }) {
             </div>
           ))}
         </div>
+        )}
       </div>
 
       <div style={{ marginBottom: 40 }}>
         <h2 style={{ marginBottom: 16, fontSize: 15, fontWeight: 300, color: tokens.graphite900 }}>Fluxo de pagamentos por cliente</h2>
+        {fluxoPorCliente.length === 0 ? (
+          <EmptyState titulo="Nenhum contrato cadastrado ainda." acaoLabel="Criar o primeiro contrato" onAcao={onNovoContrato} />
+        ) : (
         <div className="hairline" style={{ background: tokens.surface }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr 120px', gap: 16, padding: '12px 24px', borderBottom: `1px solid ${tokens.border}`, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: tokens.graphite600 }}>
             <span>Cliente</span><span>Contratado</span><span>Recebido</span><span>Pendente</span><span>Próx. vencimento</span>
@@ -751,6 +776,7 @@ function FinanceiroView({ contratos, clientes, projetos, onNovoContrato }) {
             );
           })}
         </div>
+        )}
       </div>
 
       <div style={{ marginBottom: 40 }}>
@@ -777,6 +803,9 @@ function FinanceiroView({ contratos, clientes, projetos, onNovoContrato }) {
 
       <div>
         <h2 style={{ marginBottom: 16, fontSize: 15, fontWeight: 300, color: tokens.graphite900 }}>Contratos e honorários</h2>
+        {contratos.length === 0 ? (
+          <EmptyState titulo="Nenhum contrato cadastrado ainda." acaoLabel="Criar o primeiro contrato" onAcao={onNovoContrato} />
+        ) : (
         <div className="hairline" style={{ background: tokens.surface }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 110px', gap: 16, padding: '12px 24px', borderBottom: `1px solid ${tokens.border}`, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: tokens.graphite600 }}>
             <span>Cliente / Projeto</span><span>Honorários</span><span>Forma</span><span>Status</span>
@@ -793,6 +822,7 @@ function FinanceiroView({ contratos, clientes, projetos, onNovoContrato }) {
             </div>
           ))}
         </div>
+        )}
       </div>
     </div>
   );

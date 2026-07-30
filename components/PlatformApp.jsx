@@ -1200,13 +1200,13 @@ function ClientesView({ clientes, contratos, parcerias, onNovoCliente, onExcluir
 // Vista: Projetos
 // ---------------------------------------------------------------------
 
-function ProjetoCardMini({ projeto, onDragStart, onDragEnd }) {
+function ProjetoCardMini({ projeto, onDragStart, onDragEnd, onAbrir }) {
   const urgencia = calcularUrgenciaPrazo(projeto.prazoEtapa);
   const aguardando = projeto.statusEtapa === 'aguardando_aprovacao_cliente';
   const temAlerta = urgencia.nivel === 'atrasado' || urgencia.nivel === 'proximo' || aguardando;
 
   return (
-    <div draggable onDragStart={onDragStart} onDragEnd={onDragEnd} className="hairline" style={{ background: tokens.surface, padding: 0, cursor: 'grab', borderLeft: urgencia.nivel === 'atrasado' ? `2px solid ${tokens.alert}` : `1px solid ${tokens.border}`, overflow: 'hidden' }}>
+    <div draggable onDragStart={onDragStart} onDragEnd={onDragEnd} onClick={onAbrir} className="hairline" style={{ background: tokens.surface, padding: 0, cursor: 'grab', borderLeft: urgencia.nivel === 'atrasado' ? `2px solid ${tokens.alert}` : `1px solid ${tokens.border}`, overflow: 'hidden' }}>
       {projeto.fotoUrl && <img src={projeto.fotoUrl} alt={projeto.nome} style={{ width: '100%', height: 110, objectFit: 'cover', display: 'block' }} />}
       <div style={{ padding: 14 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
@@ -1232,7 +1232,7 @@ function ProjetoCardMini({ projeto, onDragStart, onDragEnd }) {
   );
 }
 
-function ProjetosView({ projetos, setProjetos, onNovoProjeto }) {
+function ProjetosView({ projetos, setProjetos, onNovoProjeto, onAbrirProjeto }) {
   const [arrastando, setArrastando] = useState(null);
   const [colunaFoco, setColunaFoco] = useState(null);
 
@@ -1263,7 +1263,7 @@ function ProjetosView({ projetos, setProjetos, onNovoProjeto }) {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 10, minHeight: 80 }}>
                 {projetosDaFase.length === 0 && <p style={{ margin: 0, padding: '24px 4px', textAlign: 'center', fontSize: 12, color: tokens.graphite600, opacity: 0.5 }}>Nenhum projeto</p>}
-                {projetosDaFase.map((p) => (<ProjetoCardMini key={p.id} projeto={p} onDragStart={() => setArrastando(p.id)} onDragEnd={() => setArrastando(null)} />))}
+                {projetosDaFase.map((p) => (<ProjetoCardMini key={p.id} projeto={p} onDragStart={() => setArrastando(p.id)} onDragEnd={() => setArrastando(null)} onAbrir={() => onAbrirProjeto(p.id)} />))}
               </div>
             </div>
           );
@@ -1276,6 +1276,338 @@ function ProjetosView({ projetos, setProjetos, onNovoProjeto }) {
 // ---------------------------------------------------------------------
 // Vista: Demandas
 // ---------------------------------------------------------------------
+
+// ---------------------------------------------------------------------
+// Vista: detalhe de um projeto (visão geral, demandas, revisões,
+// arquivos, acervo fotográfico e exportação de panorama em PDF)
+// ---------------------------------------------------------------------
+
+function gerarPdfPanoramaProjeto(projeto, contratoDoProjeto, demandasDoProjeto, revisoes) {
+  import('jspdf').then(({ default: jsPDF }) => {
+    const doc = new jsPDF();
+    let y = 20;
+    const quebrarPaginaSeNecessario = () => {
+      if (y > 275) { doc.addPage(); y = 20; }
+    };
+
+    doc.setFontSize(16);
+    doc.text(projeto.nome, 14, y);
+    y += 9;
+
+    doc.setFontSize(10);
+    doc.text(`Código: ${projeto.codigo || '—'}`, 14, y); y += 6;
+    doc.text(`Cliente: ${projeto.cliente || '—'}`, 14, y); y += 6;
+    doc.text(`Equipe responsável: ${projeto.responsavel || '—'}`, 14, y); y += 6;
+    const fase = PHASES.find((f) => f.key === projeto.fase);
+    doc.text(`Fase atual: ${fase ? fase.label : '—'}`, 14, y); y += 6;
+    doc.text(`Prazo da etapa: ${formatarData(projeto.prazoEtapa)}`, 14, y); y += 6;
+    doc.text(`Gerado em: ${formatarData(dataDeHojeISO())}`, 14, y); y += 12;
+
+    doc.setFontSize(12);
+    doc.text('Contrato', 14, y); y += 7;
+    doc.setFontSize(10);
+    if (contratoDoProjeto) {
+      doc.text(`Honorários: ${formatarMoeda(contratoDoProjeto.honorarios)}`, 14, y); y += 6;
+      doc.text(`Status: ${contratoDoProjeto.status === 'em_vigor' ? 'Em vigor' : 'Encerrado'}`, 14, y); y += 6;
+    } else {
+      doc.text('Nenhum contrato vinculado.', 14, y); y += 6;
+    }
+    y += 6;
+
+    doc.setFontSize(12);
+    doc.text(`Demandas ativas (${demandasDoProjeto.length})`, 14, y); y += 7;
+    doc.setFontSize(10);
+    if (demandasDoProjeto.length === 0) {
+      doc.text('Nenhuma demanda ativa.', 14, y); y += 6;
+    } else {
+      demandasDoProjeto.forEach((d) => {
+        quebrarPaginaSeNecessario();
+        doc.text(`• [${d.prioridade}] ${d.titulo}`, 14, y);
+        y += 6;
+      });
+    }
+    y += 6;
+    quebrarPaginaSeNecessario();
+
+    doc.setFontSize(12);
+    doc.text(`Revisões (${revisoes.length})`, 14, y); y += 7;
+    doc.setFontSize(10);
+    if (revisoes.length === 0) {
+      doc.text('Nenhuma revisão registrada.', 14, y);
+    } else {
+      revisoes.forEach((r) => {
+        quebrarPaginaSeNecessario();
+        doc.text(`• ${formatarData(r.data)} — ${r.titulo}`, 14, y);
+        y += 6;
+      });
+    }
+
+    const nomeArquivo = `panorama-${(projeto.codigo || projeto.nome).replace(/\s+/g, '-').toLowerCase()}.pdf`;
+    doc.save(nomeArquivo);
+  });
+}
+
+function ProjetoDetalheView({ projeto, contratos, demandas, equipe, onVoltar, onAtualizarProjeto, onAbrirDemanda }) {
+  const [aba, setAba] = useState('geral');
+  const [novaRevisao, setNovaRevisao] = useState(false);
+  const [formRevisao, setFormRevisao] = useState({ titulo: '', descricao: '', autor: '' });
+  const [legendaFotoTemp, setLegendaFotoTemp] = useState('');
+
+  const contratoDoProjeto = contratos.find((c) => c.projetoId === projeto.id);
+  const demandasDoProjeto = demandas.filter((d) => d.projetoId === projeto.id);
+  const revisoes = projeto.revisoes || [];
+  const arquivos = projeto.arquivos || [];
+  const fotos = projeto.fotos || [];
+
+  const ABAS = [
+    { key: 'geral', label: 'Visão geral' },
+    { key: 'demandas', label: `Demandas (${demandasDoProjeto.length})` },
+    { key: 'revisoes', label: `Revisões (${revisoes.length})` },
+    { key: 'arquivos', label: `Arquivos (${arquivos.length})` },
+    { key: 'fotos', label: `Acervo fotográfico (${fotos.length})` },
+  ];
+
+  function mudarFase(novaFaseKey) {
+    onAtualizarProjeto(projeto.id, { fase: novaFaseKey, statusEtapa: 'em_andamento' });
+  }
+
+  function adicionarRevisao() {
+    if (!formRevisao.titulo.trim()) return;
+    const nova = { id: `rev-${Date.now()}`, titulo: formRevisao.titulo, descricao: formRevisao.descricao, autor: formRevisao.autor, data: dataDeHojeISO() };
+    onAtualizarProjeto(projeto.id, { revisoes: [...revisoes, nova] });
+    setFormRevisao({ titulo: '', descricao: '', autor: '' });
+    setNovaRevisao(false);
+  }
+
+  function handleArquivo(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const novo = { id: `arq-${Date.now()}`, nome: file.name, url: reader.result, data: dataDeHojeISO() };
+      onAtualizarProjeto(projeto.id, { arquivos: [...arquivos, novo] });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }
+
+  function handleFoto(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const nova = { id: `foto-${Date.now()}`, url: reader.result, legenda: legendaFotoTemp };
+      onAtualizarProjeto(projeto.id, { fotos: [...fotos, nova] });
+      setLegendaFotoTemp('');
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }
+
+  return (
+    <div>
+      <button onClick={onVoltar} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: 'none', cursor: 'pointer', color: tokens.graphite600, fontSize: 12, marginBottom: 24 }}>
+        <ArrowLeft size={14} strokeWidth={1.5} /> Voltar para projetos
+      </button>
+
+      <TopBar
+        eyebrow="Projeto"
+        titulo={projeto.nome}
+        acao={<Botao variante="secondary" onClick={() => gerarPdfPanoramaProjeto(projeto, contratoDoProjeto, demandasDoProjeto, revisoes)}><FileText size={14} strokeWidth={1.5} />Gerar PDF do panorama</Botao>}
+      />
+
+      <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${tokens.border}`, marginBottom: 28, flexWrap: 'wrap' }}>
+        {ABAS.map((a) => (
+          <button
+            key={a.key}
+            onClick={() => setAba(a.key)}
+            style={{
+              padding: '10px 14px', fontSize: 12.5, background: 'transparent', border: 'none', cursor: 'pointer',
+              color: aba === a.key ? tokens.graphite900 : tokens.graphite600,
+              borderBottom: aba === a.key ? `2px solid ${tokens.chromeAccent}` : '2px solid transparent',
+              marginBottom: -1,
+            }}
+          >
+            {a.label}
+          </button>
+        ))}
+      </div>
+
+      {aba === 'geral' && (
+        <div>
+          {projeto.fotoUrl && <img src={projeto.fotoUrl} alt={projeto.nome} style={{ width: '100%', maxHeight: 260, objectFit: 'cover', marginBottom: 28 }} />}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 32 }}>
+            <div>
+              <p style={{ margin: 0, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: tokens.graphite600 }}>Código</p>
+              <p style={{ margin: '4px 0 0', fontSize: 14, color: tokens.graphite900 }}>{projeto.codigo || '—'}</p>
+            </div>
+            <div>
+              <p style={{ margin: 0, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: tokens.graphite600 }}>Cliente</p>
+              <p style={{ margin: '4px 0 0', fontSize: 14, color: tokens.graphite900 }}>{projeto.cliente}</p>
+            </div>
+            <div>
+              <p style={{ margin: 0, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: tokens.graphite600 }}>Equipe responsável</p>
+              <p style={{ margin: '4px 0 0', fontSize: 14, color: tokens.graphite900 }}>{projeto.responsavel || 'Sem responsável'}</p>
+            </div>
+            <div>
+              <p style={{ margin: 0, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: tokens.graphite600 }}>Prazo da etapa atual</p>
+              <p style={{ margin: '4px 0 0', fontSize: 14, color: tokens.graphite900 }}>{formatarData(projeto.prazoEtapa)}</p>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 32 }}>
+            <p style={{ margin: '0 0 8px', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: tokens.graphite600 }}>Fase do projeto</p>
+            <select className="hairline" style={{ ...inputStyle, maxWidth: 320 }} value={projeto.fase} onChange={(e) => mudarFase(e.target.value)}>
+              {PHASES.map((f) => (<option key={f.key} value={f.key}>{f.label}</option>))}
+            </select>
+          </div>
+
+          <div>
+            <p style={{ margin: '0 0 8px', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: tokens.graphite600 }}>Contrato vinculado</p>
+            {contratoDoProjeto ? (
+              <div className="hairline" style={{ background: tokens.surface, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <p style={{ margin: 0, fontSize: 13, color: tokens.graphite900 }}>{formatarMoeda(contratoDoProjeto.honorarios)}</p>
+                  <p style={{ margin: '3px 0 0', fontSize: 12, color: tokens.graphite600 }}>{contratoDoProjeto.forma}</p>
+                </div>
+                <Badge tone={contratoDoProjeto.status === 'em_vigor' ? 'neutral' : 'ghost'}>{contratoDoProjeto.status === 'em_vigor' ? 'Em vigor' : 'Encerrado'}</Badge>
+              </div>
+            ) : (
+              <p className="hairline" style={{ background: tokens.surface, padding: '16px 20px', fontSize: 12, color: tokens.graphite600 }}>Nenhum contrato vinculado ainda — cadastre em Financeiro.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {aba === 'demandas' && (
+        demandasDoProjeto.length === 0 ? (
+          <EmptyState titulo="Nenhuma demanda vinculada a este projeto ainda." />
+        ) : (
+          <div className="hairline" style={{ background: tokens.surface }}>
+            {demandasDoProjeto.map((d, i) => (
+              <div key={d.id} onClick={() => onAbrirDemanda(d.id)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', borderTop: i !== 0 ? `1px solid ${tokens.border}` : 'none', cursor: 'pointer' }}>
+                <div>
+                  <p style={{ margin: 0, fontSize: 13, color: tokens.graphite900 }}>{d.titulo}</p>
+                  <p style={{ margin: '3px 0 0', fontSize: 12, color: tokens.graphite600 }}>{d.status}</p>
+                </div>
+                <Badge tone={d.prioridade === 'Urgente' ? 'alert' : 'neutral'}>{d.prioridade}</Badge>
+              </div>
+            ))}
+          </div>
+        )
+      )}
+
+      {aba === 'revisoes' && (
+        <div>
+          {!novaRevisao ? (
+            <Botao variante="secondary" onClick={() => setNovaRevisao(true)}><Plus size={13} strokeWidth={1.5} />Nova revisão</Botao>
+          ) : (
+            <div className="hairline" style={{ background: tokens.surface, padding: 20, marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <input className="hairline" style={inputStyle} placeholder="Título da revisão" value={formRevisao.titulo} onChange={(e) => setFormRevisao((f) => ({ ...f, titulo: e.target.value }))} />
+              <textarea className="hairline" style={{ ...inputStyle, minHeight: 70, resize: 'vertical' }} placeholder="Descrição" value={formRevisao.descricao} onChange={(e) => setFormRevisao((f) => ({ ...f, descricao: e.target.value }))} />
+              <select className="hairline" style={inputStyle} value={formRevisao.autor} onChange={(e) => setFormRevisao((f) => ({ ...f, autor: e.target.value }))}>
+                <option value="">Autor da revisão</option>
+                {equipe.map((m) => (<option key={m.id} value={m.nome}>{m.nome}</option>))}
+              </select>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <Botao variante="secondary" onClick={() => setNovaRevisao(false)}>Cancelar</Botao>
+                <Botao onClick={adicionarRevisao}>Salvar revisão</Botao>
+              </div>
+            </div>
+          )}
+          <div style={{ marginTop: 20 }}>
+            {revisoes.length === 0 ? (
+              <EmptyState titulo="Nenhuma revisão registrada ainda." />
+            ) : (
+              <div className="hairline" style={{ background: tokens.surface }}>
+                {revisoes.slice().reverse().map((r, i) => (
+                  <div key={r.id} style={{ padding: '14px 20px', borderTop: i !== 0 ? `1px solid ${tokens.border}` : 'none' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                      <p style={{ margin: 0, fontSize: 13, color: tokens.graphite900 }}>{r.titulo}</p>
+                      <span className="font-mono" style={{ fontSize: 11, color: tokens.graphite600, flexShrink: 0 }}>{formatarData(r.data)}</span>
+                    </div>
+                    {r.descricao && <p style={{ margin: '6px 0 0', fontSize: 12, color: tokens.graphite700, lineHeight: 1.5 }}>{r.descricao}</p>}
+                    {r.autor && <p style={{ margin: '6px 0 0', fontSize: 11, color: tokens.graphite600 }}>{r.autor}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {aba === 'arquivos' && (
+        <div>
+          <label className="btn-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 16px', fontSize: 13, cursor: 'pointer', marginBottom: 20 }}>
+            <Paperclip size={14} strokeWidth={1.5} /> Anexar arquivo
+            <input type="file" onChange={handleArquivo} style={{ display: 'none' }} />
+          </label>
+          {arquivos.length === 0 ? (
+            <EmptyState titulo="Nenhum arquivo anexado ainda." />
+          ) : (
+            <div className="hairline" style={{ background: tokens.surface }}>
+              {arquivos.map((a, i) => (
+                <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', borderTop: i !== 0 ? `1px solid ${tokens.border}` : 'none' }}>
+                  <span style={{ fontSize: 13, color: tokens.graphite900 }}>{a.nome}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                    <span className="font-mono" style={{ fontSize: 11, color: tokens.graphite600 }}>{formatarData(a.data)}</span>
+                    <a href={a.url} download={a.nome} style={{ fontSize: 12, color: tokens.chromeAccent }}>Baixar</a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {aba === 'fotos' && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+            <input className="hairline" style={{ ...inputStyle, maxWidth: 260 }} placeholder="Legenda (opcional)" value={legendaFotoTemp} onChange={(e) => setLegendaFotoTemp(e.target.value)} />
+            <label className="btn-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 16px', fontSize: 13, cursor: 'pointer' }}>
+              <Plus size={14} strokeWidth={1.5} /> Adicionar foto
+              <input type="file" accept="image/*" onChange={handleFoto} style={{ display: 'none' }} />
+            </label>
+          </div>
+          {fotos.length === 0 ? (
+            <EmptyState titulo="Nenhuma foto no acervo ainda." />
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
+              {fotos.map((f) => (
+                <div key={f.id} className="hairline" style={{ background: tokens.surface, overflow: 'hidden' }}>
+                  <img src={f.url} alt={f.legenda || projeto.nome} style={{ width: '100%', height: 130, objectFit: 'cover', display: 'block' }} />
+                  {f.legenda && <p style={{ margin: 0, padding: '8px 10px', fontSize: 11, color: tokens.graphite600 }}>{f.legenda}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProjetosModulo({ projetos, setProjetos, contratos, demandas, equipe, onNovoProjeto, onAtualizarProjeto, onAbrirDemanda }) {
+  const [projetoSelecionadoId, setProjetoSelecionadoId] = useState(null);
+  const projeto = projetos.find((p) => p.id === projetoSelecionadoId);
+
+  if (projeto) {
+    return (
+      <ProjetoDetalheView
+        projeto={projeto}
+        contratos={contratos}
+        demandas={demandas}
+        equipe={equipe}
+        onVoltar={() => setProjetoSelecionadoId(null)}
+        onAtualizarProjeto={onAtualizarProjeto}
+        onAbrirDemanda={onAbrirDemanda}
+      />
+    );
+  }
+
+  return <ProjetosView projetos={projetos} setProjetos={setProjetos} onNovoProjeto={onNovoProjeto} onAbrirProjeto={setProjetoSelecionadoId} />;
+}
 
 function DemandasView({ demandas, projetos, onNovaDemanda, onAbrirDemanda }) {
   return (
@@ -1667,6 +1999,10 @@ export default function PlatformApp({ usuario }) {
     notificar(`Novo projeto cadastrado: ${p.nome}`);
   }
 
+  function atualizarProjeto(id, patch) {
+    setProjetos((atual) => atual.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  }
+
   function cadastrarDemanda(d) {
     setDemandas((atual) => [...atual, d]);
     notificar(`Nova demanda: ${d.titulo}`);
@@ -1710,7 +2046,18 @@ export default function PlatformApp({ usuario }) {
         onExcluirCliente={excluirCliente}
       />
     ),
-    projetos: <ProjetosView projetos={projetos} setProjetos={setProjetos} onNovoProjeto={() => setModalProjeto(true)} />,
+    projetos: (
+      <ProjetosModulo
+        projetos={projetos}
+        setProjetos={setProjetos}
+        contratos={contratos}
+        demandas={demandas}
+        equipe={equipe}
+        onNovoProjeto={() => setModalProjeto(true)}
+        onAtualizarProjeto={atualizarProjeto}
+        onAbrirDemanda={setDemandaSelecionadaId}
+      />
+    ),
     demandas: <DemandasView demandas={demandas} projetos={projetos} onNovaDemanda={() => setModalDemanda(true)} onAbrirDemanda={setDemandaSelecionadaId} />,
     parcerias: <ParceriasView parcerias={parcerias} onNovaParceria={() => setModalParceria(true)} />,
     orcamentos: <OrcamentosView orcamentos={orcamentos} onNovoOrcamento={() => setModalOrcamento(true)} />,
